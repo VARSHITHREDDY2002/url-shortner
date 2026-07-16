@@ -49,6 +49,22 @@ app.post("/shorten", (req, res) => {
   }
 });
 
+app.get("/:code", (req, res) => {
+  const { code } = req.params;
+
+  const link = db
+      .prepare("SELECT url FROM links WHERE code = ?")
+      .get(code) as { url: string } | undefined;
+
+  if (!link) {
+      return res.status(404).json({
+          error: "Short URL not found",
+      });
+  }
+
+  return res.redirect(301, link.url);
+});
+
 export function isValidUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
