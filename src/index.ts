@@ -9,43 +9,108 @@ app.use(express.json());
 
 app.post("/shorten", (req, res) => {
   try {
-    const { url, customalias } = req.body as { url: string; customalias?: string };
+    const { url, customalias } = req.body as {
+      url?: string;
+      customalias?: string;
+    };
 
-    if (!isValidUrl(url)) {
-      return res.status(400).json({ error: "Invalid URL" });
+    // URL is required
+    if (!url) {
+      return res.status(400).json({
+        error: "URL is required",
+      });
     }
 
-    if (customalias) {
-      const existingAlias = db
+    // Validate URL
+    if (!isValidUrl(url)) {
+      return res.status(400).json({
+        error: "Invalid URL",
+      });
+    }
+
+    // Validate alias (optional)
+    if (
+      customalias &&
+      !/^[A-Za-z0-9_-]{3,20}$/.test(customalias)
+    ) {
+      return res.status(400).json({
+        error:
+          "Alias must contain only letters, numbers, '-' or '_' and be 3-20 characters long.",
+      });
+    }
+
+    // Check if URL already exists
+    const existingUrl = db
+      .prepare("SELECT code, url FROM links WHERE url = ?")
+      .get(url) as { code: string; url: string } | undefined;
+
+    // URL already exists
+    if (existingUrl) {
+      // No alias -> return existing short URL
+      if (!customalias) {
+        return res.status(200).json(existingUrl);
+      }
+
+      // Alias provided
+      const aliasExists = db
         .prepare("SELECT 1 FROM links WHERE code = ?")
         .get(customalias);
 
-      if (existingAlias) {
-        return res.status(409).json({ error: "Custom alias already taken" });
+      if (aliasExists) {
+        return res.status(409).json({
+          error: "Custom alias already taken",
+        });
       }
 
-      const existingUrl = db
-        .prepare("SELECT code, url FROM links WHERE url = ?")
-        .get(url) as { code: string; url: string } | undefined;
+      // Create another mapping for the same URL
+      db.prepare(
+        "INSERT INTO links(code, url) VALUES(?, ?)"
+      ).run(customalias, url);
 
-      if (existingUrl) {
-        return res.json({ code: existingUrl.code, url: existingUrl.url });
+      return res.status(201).json({
+        code: customalias,
+        url,
+      });
+    }
+
+    // New URL
+
+    let code = customalias;
+
+    // Generate code if alias wasn't provided
+    if (!code) {
+      do {
+        code = generateShortCode();
+      } while (
+        db.prepare("SELECT 1 FROM links WHERE code = ?").get(code)
+      );
+    } else {
+      // Alias provided -> ensure unique
+      const aliasExists = db
+        .prepare("SELECT 1 FROM links WHERE code = ?")
+        .get(code);
+
+      if (aliasExists) {
+        return res.status(409).json({
+          error: "Custom alias already taken",
+        });
       }
-
-      db.prepare("INSERT INTO links (code, url) VALUES (?, ?)").run(customalias, url);
-      return res.status(201).json({ code: customalias, url });
     }
 
-    let code = generateShortCode();
-    while (db.prepare("SELECT 1 FROM links WHERE code = ?").get(code)) {
-      code = generateShortCode();
-    }
+    db.prepare(
+      "INSERT INTO links(code, url) VALUES(?, ?)"
+    ).run(code, url);
 
-    db.prepare("INSERT INTO links (code, url) VALUES (?, ?)").run(code, url);
-    return res.status(201).json({ code, url });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(201).json({
+      code,
+      url,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      error: "Internal server error",
+    });
   }
 });
 
