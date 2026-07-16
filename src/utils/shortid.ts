@@ -1,4 +1,8 @@
-export function generateShortId(length = 6): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+import { customAlphabet } from 'nanoid';
+
+export function generateShortCode()
+{
+    const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
+    const generate = customAlphabet(alphabet, 8);
+    return generate();
 }
