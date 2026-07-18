@@ -24,7 +24,7 @@ Server starts at `http://localhost:3002`. Set the `PORT` environment variable to
 ## Test
 
 ```bash
-npm test
+npx vitest run src/tests/app.test.ts  
 ```
 
 Tests run against an in-memory SQLite database — no setup needed.
